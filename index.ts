@@ -10,13 +10,13 @@ import {
 // The smart-contract package contains exports some standard Contracts and all of Request contracts
 import { TestERC20__factory } from "@requestnetwork/smart-contracts/types";
 
-import { ContractTransaction, ethers, Wallet } from "ethers";
+import { ethers, Wallet } from "ethers";
 
 //#region Local ERC20 Config
 const provider = new ethers.providers.JsonRpcProvider() as ethers.providers.Provider;
 
 // this is a local ERC20 token deployed on ganache
-const localToken = "0x9FBDa871d559710256a2502A2517b794B482Db40";
+const localToken = "0x38cF23C52Bb4B13F051Aec09580a2dE845a7FA35";
 const erc20 = TestERC20__factory.connect(localToken, provider);
 
 //#endregion
@@ -27,18 +27,19 @@ const mnemonic =
   "candy maple cake sugar pudding cream honey rich smooth crumble sweet treat";
 
 // Each actor has 2 wallets, one for identity (used to sign stuff) and one for payments
-const payerIdentityWallet = Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/0");
-// NB: this wallet needs to stay the /1 since it's the only one with fake TestER20
+
+// NB: this wallet needs to stay the /1 since it's the only one with fake ERC20Alpha
 const payerPaymentWallet = Wallet.fromMnemonic(
   mnemonic,
-  "m/44'/60'/0'/0/1"
+  "m/44'/60'/0'/0/0"
 ).connect(provider);
+const payerIdentityWallet = Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/1");
 
-const payeeIdentityWallet = Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/2");
 const payeePaymentWallet = Wallet.fromMnemonic(
   mnemonic,
-  "m/44'/60'/0'/0/3"
+  "m/44'/60'/0'/0/2"
 ).connect(provider);
+const payeeIdentityWallet = Wallet.fromMnemonic(mnemonic, "m/44'/60'/0'/0/3");
 
 //#endregion
 
@@ -67,7 +68,9 @@ const payerSignatureInfo = {
 
 //#region RequestNetwork setup
 // ✏️ Signature provider
-const signatureProvider: RequestNetwork.Types.SignatureProvider.ISignatureProvider;
+const signatureProvider = new EthereumPrivateKeySignatureProvider(
+  payeeSignatureInfo
+);
 
 // Initialize RequestNetwok with signature provider and the node connection configuration
 const requestNetwork = new RequestNetwork.RequestNetwork({
@@ -78,7 +81,7 @@ const requestNetwork = new RequestNetwork.RequestNetwork({
       address: localToken,
       decimals: 18,
       network: "private",
-      symbol: "TestER20",
+      symbol: "ERC20Alpha",
       type: RequestNetwork.Types.RequestLogic.CURRENCY.ERC20,
     },
   ],
@@ -88,15 +91,29 @@ const requestNetwork = new RequestNetwork.RequestNetwork({
 //#region Request setup
 // ✏️ Payment network information
 const paymentNetwork: RequestNetwork.Types.Payment.IPaymentNetworkCreateParameters =
-  {};
+  {
+    id: RequestNetwork.Types.Payment.PAYMENT_NETWORK_ID.ERC20_PROXY_CONTRACT,
+    parameters: {
+      paymentAddress: payeePaymentWallet.address,
+    },
+  };
 
 // ✏️ The main request info: 1 TestERC20 from Payee to Payer
-const requestInfo: RequestNetwork.Types.IRequestInfo = {};
+const requestInfo: RequestNetwork.Types.IRequestInfo = {
+  currency: "ERC20Alpha",
+  expectedAmount: ethers.utils.parseEther("1").toString(),
+  payee: payeeIdentity,
+  payer: payerIdentity,
+};
 //#endregion
 
 (async () => {
   // ✏️ Create the request
-  const request: RequestNetwork.Request;
+  const request = await requestNetwork.createRequest({
+    requestInfo,
+    paymentNetwork,
+    signer: payeeIdentity,
+  });
   console.log(`request ${request.requestId} created`);
   await request.waitForConfirmation();
   console.log(`request ${request.requestId} confirmed`);
@@ -113,7 +130,13 @@ const requestInfo: RequestNetwork.Types.IRequestInfo = {};
 
   // ✏️ Pay the request
 
-  const tx: ContractTransaction;
+  await approveErc20IfNeeded(
+    request.getData(),
+    payerPaymentWallet.address,
+    payerPaymentWallet
+  );
+
+  const tx = await payRequest(request.getData(), payerPaymentWallet);
   console.log(`Payment tx: ${tx.hash}`);
   await tx.wait(1);
   console.log(`After payment`);
@@ -124,5 +147,6 @@ const requestInfo: RequestNetwork.Types.IRequestInfo = {};
   console.log(
     `Payer: ${(await erc20.balanceOf(payerPaymentWallet.address)).toString()}`
   );
+  await request.refreshBalance();
   console.log("Balance", request.getData().balance.balance);
 })();
