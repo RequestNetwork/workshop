@@ -8,10 +8,10 @@
     "build": "tsc index.ts"
   },
   "dependencies": {
-    "@requestnetwork/epk-signature": "^0.5.34",
-    "@requestnetwork/payment-processor": "^0.37.0",
-    "@requestnetwork/request-client.js": "^0.39.0",
-    "ethers": "~5.1.4",
+    "@requestnetwork/epk-signature": "^0.5.35-next.1612",
+    "@requestnetwork/payment-processor": "^0.37.1-next.1612",
+    "@requestnetwork/request-client.js": "^0.39.1-next.1612",
+    "ethers": "5.5.1",
     "ts-node": "^9.1.1",
     "typescript": "^4.1.3"
   }

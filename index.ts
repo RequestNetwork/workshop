@@ -13,7 +13,7 @@ import { TestERC20__factory } from "@requestnetwork/smart-contracts/types";
 import { ContractTransaction, ethers, Wallet } from "ethers";
 
 //#region Local ERC20 Config
-const provider = new ethers.providers.JsonRpcProvider();
+const provider = new ethers.providers.JsonRpcProvider() as ethers.providers.Provider;
 
 // this is a local ERC20 token deployed on ganache
 const localToken = "0x9FBDa871d559710256a2502A2517b794B482Db40";
